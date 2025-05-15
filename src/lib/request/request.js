@@ -1,5 +1,5 @@
 // 基础配置
-const BASE_URL = 'http://10.21.145.217:8000';
+export const BASE_URL = 'http://10.21.145.217:8000';
 
 // 通用请求封装
 export default async function request(config) {
@@ -75,6 +75,8 @@ function responseInterceptor(response) {
   // 处理通用响应格式
   return response.data;
 }
+
+request.BASE_URL = BASE_URL;
 
 /**************** 使用示例 ****************/
 // GET请求

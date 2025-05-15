@@ -22,14 +22,15 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'rec
 import request from '@/lib/request/request'; // 假设你有一个请求库
 
 const algorithms = ['PageRank', 'k-Clique', 'GCN'];
-const datasets = ['Rmat-16','Rmat-18','Rmat-20', 'Wiki-Vote', 'Ego-Gplus', 'Web-Google'];
+// const datasets = ['Rmat-16','Rmat-18','Rmat-20', 'Wiki-Vote', 'Ego-Gplus', 'Web-Google'];
+const datasets = ['Rmat-16', 'Rmat-17', 'Rmat-18', 'Rmat-19', 'Rmat-20'];
 const allDatasetsOption = 'all-datasets';
 
 // 新增算法与数据集允许组合配置
 const allowedCombinations = {
-  PageRank: [],
-  'k-Clique': ['Rmat-16','Rmat-18','Rmat-20'],
-  GCN: [],
+  'PageRank': ['Rmat-16', 'Rmat-17', 'Rmat-18', 'Rmat-19', 'Rmat-20'],
+  'k-Clique': ['Rmat-16', 'Rmat-17', 'Rmat-18', 'Rmat-19', 'Rmat-20'],
+  'GCN': ['Rmat-16', 'Rmat-17', 'Rmat-18', 'Rmat-19', 'Rmat-20'],
 };
 
 const algorithmDetails = {
@@ -46,12 +47,12 @@ const algorithmDetails = {
 
 const datasetInfo = {
   'Rmat-16': { nodes: '2^16', edges: '2^20' },
+  'Rmat-17': { nodes: '2^17', edges: '2^21' },
   'Rmat-18': { nodes: '2^18', edges: '2^22' },
+  'Rmat-19': { nodes: '2^19', edges: '2^23' },
   'Rmat-20': { nodes: '2^20', edges: '2^24' },
-  'Wiki-Vote': { nodes: 7115, edges: 103689 },
-  'Ego-Gplus': { nodes: 107614, edges: 13673453 },
-  'Web-Google': { nodes: 'xxx', edges: 'xxx' },
 };
+
 
 export default function Page() {
   const [selectedAlgo, setSelectedAlgo] = useState(algorithms[0]);
@@ -61,6 +62,20 @@ export default function Page() {
   const [running, setRunning] = useState(false);
   const [performanceData, setPerformanceData] = useState([]);
   const [chartMetric, setChartMetric] = useState('time');
+  const [progress, setProgress] = useState(0);
+  const logBoxRef = React.useRef(null);
+
+  // 自动滚动到底部
+  const scrollToBottom = () => {
+    if (logBoxRef.current) {
+      logBoxRef.current.scrollTop = logBoxRef.current.scrollHeight;
+    }
+  };
+
+  // 监听日志变化，自动滚动
+  React.useEffect(() => {
+    scrollToBottom();
+  }, [logs]);
 
   // 新增判断按钮是否可用的逻辑
   const isButtonDisabled = () => {
@@ -101,66 +116,12 @@ export default function Page() {
     return getValidData();
   };
 
-  // 模拟请求函数
-const mockRequest = async () => {
-  // 模拟的 JSON 对象
-  const mockData = {
-      "status": 200,
-      "data": {
-        "Algorithm": "k-Clique",
-          "Dataset": "Rmat-16",
-          "Vertices": 65536,
-          "Edges": 477603,
-          "CPU-Time(s)": 0.212805,
-          "ACC-Time(s)": 0.016535,
-          "Speedup": 12.87,
-          "GTSPS": 12.869736
-      },
-      "logs": [
-          "Log file created: /home/jinjm/results/Triangle_Rmat-16_20250427_193719.log",
-          "Algorithm: Triangle Counting",
-          "Dataset: Rmat-16",
-          "Timestamp: 2025-04-27 19:37:19",
-          "",
-          "Opening device 0",
-          "Loading xclbin /home/tgx/tangexing/tgx_data/Projects_clone/triangle_gcn_bk/krnl_triangle_count.xclbin",
-          "Running single-device parallel execution mode",
-          "Reading file...",
-          "Converting format...",
-          "Partitioning data...",
-          "Allocating buffers in global memory",
-          "Allocating mappings in host memory",
-          "Synchronizing input buffer data to device global memory",
-          "Executing kernels ...",
-          "Getting output data from kernels",
-          "",
-          "==================== FPGA KERNEL PERFORMANCE SUMMARY ====================",
-          "Timestamp: 2025-04-27 19:37:20",
-          "+----------------------------+--------------------------------------+",
-          "| Metric                      | Value                                  |",
-          "+----------------------------+--------------------------------------+",
-          "| Kernel Time                 | 16.535312 ms                           |",
-          "| Triangle Count              | 3876448                                |",
-          "| Subgraph Count              | 212805104                              |",
-          "| GTSPS                       | 12.869736                              |",
-          "| CPU Time                    | 0.212805                               s |",
-          "| Speedup                     | 12.87                                 x |",
-          "+----------------------------+--------------------------------------+",
-          "Dataset         Vertices    Edges       CPU Time(s)     ACC Time(s)     Speedup     GTSPS           ",
-          "Rmat-16         65536       477603      0.212805        0.016535        12.87       12.869736       ",
-          "Result file created: /home/jinjm/results/Result_Rmat-16_193719.txt"
-      ]
-  };
-  return new Promise((resolve) => {
-      setTimeout(() => {
-          resolve(mockData);
-      }, 1000); // 模拟请求延迟
-  });
-};
-
   const handleRun = async () => {
+    if (running) return;
+    
     setRunning(true);
-    setLogs([]);
+    setProgress(0);
+    setLogs(['正在与服务器建立连接...']);
 
     try {
       const targets = selectedDataset === allDatasetsOption
@@ -169,54 +130,107 @@ const mockRequest = async () => {
 
       // 批量执行任务
       for (const dataset of targets) {
-        //const res = await mockRequest();
-        let urlAlgo, urlData
-        if (selectedAlgo == 'k-Clique') {
-          urlAlgo = 'kclique';
+        let urlAlgo, urlData;
+        
+        // 算法URL
+        switch(selectedAlgo) {
+          case 'PageRank':
+            urlAlgo = 'pagerank';
+            break;
+          case 'k-Clique':
+            urlAlgo = 'kclique';
+            break;
+          case 'GCN':
+            urlAlgo = 'gcn';
+            break;
+          default:
+            throw new Error(`不支持的算法: ${selectedAlgo}`);
         }
 
-        if (selectedDataset == 'Rmat-16') {
-          urlData = 'rmat16';
-        } else if (selectedDataset == 'Rmat-18') {
-          urlData = 'rmat18';
-        } else if (selectedDataset == 'Rmat-20') {
-          urlData = 'rmat20';
+        // 数据集URL映射
+        switch(dataset) {
+          case 'Rmat-16':
+            urlData = 'rmat16';
+            break;
+          case 'Rmat-17':
+            urlData = 'rmat17';
+            break;
+          case 'Rmat-18':
+            urlData = 'rmat18';
+            break;
+          case 'Rmat-19':
+            urlData = 'rmat19';
+            break;
+          case 'Rmat-20':
+            urlData = 'rmat20';
+            break;
+          default:
+            throw new Error(`不支持的数据集: ${dataset}`);
         }
-        const res = await request({
-          url: `/${urlAlgo}/${urlData}`,
-          method: 'GET',
+
+        // 1. 执行流式命令
+        const eventSource = new EventSource(`${request.BASE_URL}/part1/execute/${urlAlgo}/${urlData}/`);
+        
+        eventSource.onmessage = async (event) => {
+          if (event.data === '[done]') {
+            eventSource.close();
+            
+            // 2. 显示正在拷贝result
+            setLogs(prev => [...prev, '正在拷贝result...']);
+            
+            // 3. 获取最终结果
+            try {
+              const res = await fetch(`${request.BASE_URL}/part1/result/`);
+              const jsonData = await res.json();
+              
+              // 4. 显示完成
+              setLogs(prev => [...prev, '执行完成']);
+              setProgress(100);
+
+              // 生成新的性能数据
+              const newResult = generatePerformanceData(jsonData);
+              
+              // 更新性能数据
+              setPerformanceData(prev => {
+                const filtered = prev.filter(item => item.dataset !== dataset);
+                return [...filtered, newResult]
+                  .sort((a, b) => datasets.indexOf(a.dataset) - datasets.indexOf(b.dataset));
+              });
+              setRunning(false)
+            } catch (error) {
+              setLogs(prev => [...prev, `❌ 获取结果失败: ${error.message}`]);
+              setProgress(0);
+            }
+            
+          } else if (event.data === '[error]') {
+            eventSource.close();
+            setLogs(prev => [...prev, '❌ 执行出错']);
+            setProgress(0);
+          } else {
+            setLogs(prev => [...prev, event.data]);
+          }
+        };
+
+        eventSource.onerror = () => {
+          eventSource.close();
+          setLogs(prev => [...prev, '❌ 连接错误']);
+          setProgress(0);
+        };
+
+        // 等待当前数据集处理完成
+        await new Promise((resolve) => {
+          const checkInterval = setInterval(() => {
+            if (!eventSource.readyState || eventSource.readyState === 2) {
+              clearInterval(checkInterval);
+              resolve();
+            }
+          }, 100);
         });
-        console.log('test--', res);
-
-        // 模拟执行过程
-        // await mockProcess('加载数据集元数据', dataset);
-        // await mockProcess('初始化加速器环境', dataset);
-
-        // 生成模拟结果
-        const newResult = generatePerformanceData(res);
-        console.log('newresult', newResult)
-
-        // 更新性能数据
-        setPerformanceData(prev => {
-          const filtered = prev.filter(item => item.dataset !== dataset);
-          return [...filtered, newResult]
-            .sort((a, b) => datasets.indexOf(a.dataset) - datasets.indexOf(b.dataset));
-        });
-
-        // await mockProcess('生成性能报告', dataset);
-        setLogs(res.logs);
       }
     } catch (error) {
-      setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ 执行失败: ${error}`]);
-    } finally {
-      setRunning(false);
+      setLogs(prev => [...prev, `❌ 执行失败: ${error.message}`]);
+      setProgress(0);
     }
-  };
-
-  // 模拟异步操作
-  const mockProcess = async (message) => {
-    await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 1000));
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
   };
 
   return (
@@ -352,6 +366,7 @@ const mockRequest = async () => {
               >
                 {running ? '执行中...' : '开始执行'}
               </Button>
+              {running && <LinearProgress value={progress} sx={{ mt: 1 }} />}
             </Paper>
           </Grid>
 
@@ -447,11 +462,10 @@ const mockRequest = async () => {
                   borderBottom: '1px solid rgba(255,255,255,0.1)',
                   py: 0.5
                 }
-              }}>
+              }} ref={logBoxRef}>
                 {logs.map((log, index) => (
                   <div key={index}>{`> ${log}`}</div>
                 ))}
-                {running && <LinearProgress sx={{ mt: 1 }} />}
               </Box>
             </Paper>
           </Grid>
